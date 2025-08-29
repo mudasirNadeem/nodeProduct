@@ -26,7 +26,8 @@ db.exec(`
     category  TEXT NOT NULL,
     profit INTEGER NOT NULL,
     discount INTEGER,
-    taxes INTEGER
+    taxes INTEGER,
+    createdAt DATE DEFAULT CURRENT_TIMESTAMP
   )
 `);
 db.exec(`
@@ -65,7 +66,8 @@ function mainMenu() {
   console.log("7. View All Supplier");
   console.log("8. Update Supplier");
   console.log("9. Delete Supplier");
-  console.log("10. Refresh Database");
+  console.log("10. Search Sale Product");
+  console.log("11. Refresh Database");
   // console.log("=============================");
 }
 // This is the main function that calls all other functions based on demand
@@ -105,6 +107,9 @@ async function main() {
         await deleteSupplier();
         break;
             case "10":
+        await searchSaleProduct();
+        break;
+      case "11":
         await refreshProductTable();
         break;
       case "20":
@@ -112,7 +117,7 @@ async function main() {
         process.exit();
 
       default:
-        console.log("Invalid option. Please enter a number between 1 and 5.");
+        console.log("Invalid option. Please enter a number between 0 and 20.");
     }
   }
 }
@@ -178,7 +183,14 @@ async function updateProduct() {
     let quantity = await ask("Enter Product quantity ");
     let description = await ask("Enter Product discription ");
     let category = await ask("Enter Product category ");
-    if (!name || !salePrice || !costPrice || !quantity || !description || !category) {
+    if (
+      !name ||
+      !salePrice ||
+      !costPrice ||
+      !quantity ||
+      !description ||
+      !category
+    ) {
       console.log("Please fill all option ");
       return null;
     }
@@ -228,66 +240,72 @@ async function deleteProduct() {
 }
 // sale Product
 async function saleProduct() {
-  try{
-  const productTable = await viewAllProduct();
-  if (productTable.length > 0) {
-    let customerName = await ask("Enter Customer Name ");
-    let id = await ask("Enter Product Id for selling ");
-    if (!customerName || !id) {
-      console.log("Please fill all option");
-      return null;
+  try {
+    const productTable = await viewAllProduct();
+    if (productTable.length > 0) {
+      let customerName = await ask("Enter Customer Name ");
+      let id = await ask("Enter Product Id for selling ");
+      if (!customerName || !id) {
+        console.log("Please fill all option");
+        return null;
+      }
+      let result = await db
+        .prepare("SELECT * FROM product WHERE id = ?")
+        .get(id);
+      if (!result) {
+        console.log("Invalid information");
+        return null;
+      }
+      let name = result?.name;
+      let costPrice = result?.costPrice;
+      let salePrice = result?.salePrice;
+      let description = result?.description;
+      let productQuantity = result?.quantity;
+      let category = result?.category;
+      let quantity = await ask("Enter quanity ");
+      var newQuantity = productQuantity - parseInt(quantity);
+      var profit = parseInt(salePrice) - parseInt(costPrice);
+      profit = profit * quantity;
+      if (parseInt(quantity) > productQuantity) {
+        console.log("You don't have enough items");
+        return null;
+      }
+      await db
+        .prepare("UPDATE product SET quantity = ? WHERE id = ?")
+        .run(newQuantity, id);
+      var totalPrice = parseInt(quantity) * salePrice;
+      var discount = 0;
+      var taxes = 0;
+
+      if (totalPrice > 100) {
+        discount = totalPrice * 0.04;
+        totalPrice = totalPrice - discount;
+        console.log(
+          "your total Price " + totalPrice + " (including discount 4%)"
+        );
+      }
+      if (totalPrice < 100) {
+        taxes = totalPrice * 0.04;
+        totalPrice = totalPrice + taxes;
+        console.log("your total Price " + totalPrice + " (including tax 4%)");
+      }
+      insertSaleItem(
+        id,
+        name,
+        profit,
+        customerName,
+        description,
+        category,
+        salePrice,
+        quantity,
+        totalPrice,
+        discount,
+        taxes
+      );
     }
-    let result = await db.prepare("SELECT * FROM product WHERE id = ?").get(id);
-    if (!result) {
-      console.log("Invalid information");
-      return null;
-    }
-    let name = result?.name;
-    let costPrice = result?.costPrice;
-    let salePrice = result?.salePrice;
-    let description = result?.description;
-    let productQuantity = result?.quantity;
-    let category = result?.category;
-    let quantity = await ask("Enter quanity ");
-    var newQuantity = productQuantity - parseInt(quantity);
-    var profit = parseInt(salePrice) - parseInt(costPrice) ;
-   profit =  profit *  quantity;
-    if (parseInt(quantity) > productQuantity) {
-      console.log("You don't have enough items");
-      return null;
-    }
-    await db
-      .prepare("UPDATE product SET quantity = ? WHERE id = ?")
-      .run(newQuantity, id);
-    var totalPrice = parseInt(quantity) * salePrice;
-     var discount = 0;
-     var taxes = 0;
-    if(totalPrice > 100){
-         discount = totalPrice * 0.04; 
-  totalPrice = totalPrice - discount;
-    }
-     if(totalPrice > 100){
-       taxes = totalPrice * 0.04; 
-     totalPrice = totalPrice + taxes;
-    }
-    console.log("your total Price " + totalPrice);
-    insertSaleItem(
-      id,
-      name,
-      profit,
-      customerName,
-      description,
-      category,
-      salePrice,
-      quantity,
-      totalPrice,
-      discount,
-      taxes 
-    );
+  } catch (error) {
+    console.log(error.message);
   }
-   }catch(error){
-    console.log(error.message)
-   }
 }
 // Insert sold product into the database
 async function insertSaleItem(
@@ -321,7 +339,7 @@ async function insertSaleItem(
       category,
       profit,
       discount,
-      taxes,
+      taxes
     );
 }
 // add  Supplier
@@ -444,9 +462,45 @@ async function searchProduct() {
     console.log("Please enter correct option");
   }
 }
+// Search Sale Product
+async function searchSaleProduct() {
+  let searchProduct = await ask("Please Enter Search option Name/Date ");
+  
+  if (searchProduct.toLowerCase() === "name") {
+    let name = await ask("Please Enter customer name ");
+    const searchSaleItems = db
+      .prepare("SELECT * FROM sale WHERE customerName LIKE ?")
+      .all(`%${name}%`);
+    console.table(searchSaleItems);
+    
+  } else if (searchProduct.toLowerCase() === "date") {
+    let date = await ask("Please Enter date (DD/MM/YYYY) ");
+    
+    // Convert DD/MM/YYYY to YYYY-MM-DD format
+    const dateParts = date.split('/');
+    if (dateParts.length === 3) {
+      const day = dateParts[0].padStart(2, '0');
+      const month = dateParts[1].padStart(2, '0');
+      const year = dateParts[2];
+      const formattedDate = `${year}-${month}-${day}`;
+      
+      const searchSaleItems = db
+        .prepare("SELECT * FROM sale WHERE DATE(createdAt) = DATE(?)")
+        .all(formattedDate);
+      console.table(searchSaleItems);
+    } else {
+      console.log("Please enter date in correct format (DD/MM/YYYY)");
+    }
+    
+  } else {
+    console.log("Please enter correct option");
+  }
+}
 
 async function refreshProductTable() {
   await db.prepare("DELETE FROM product WHERE quantity = 0").run();
   console.log("successfully Refresh");
 }
+
+
 main();
