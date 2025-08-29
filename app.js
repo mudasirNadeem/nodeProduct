@@ -56,18 +56,21 @@ function mainMenu() {
   console.log("=============================");
   console.log(" Product Management");
   console.log("=============================");
-  console.log("0. search Product");
-  console.log("1. Add New Product");
-  console.log("2. View All Product");
-  console.log("3. Update Product information");
-  console.log("4. Remove Product");
+  console.log("0. Add New Product");
+  console.log("1. View All Product");
+  console.log("2. Update Product information");
+  console.log("3. Remove Product");
+  console.log("4. search Product");
   console.log("5. Sale Product");
-  console.log("6. Add Supplier");
-  console.log("7. View All Supplier");
-  console.log("8. Update Supplier");
-  console.log("9. Delete Supplier");
-  console.log("10. Search Sale Product");
-  console.log("11. Refresh Database");
+  console.log("6. View Sale Histroy");
+  console.log("7. Search Sale Product");
+  console.log("8. Add Supplier");
+  console.log("9. View All Supplier");
+  console.log("10. Update Supplier");
+  console.log("11. Delete Supplier");
+  console.log("12. Search Supplier");
+  console.log("13. Refresh Database");
+  console.log("15. Good Bye");
   // console.log("=============================");
 }
 // This is the main function that calls all other functions based on demand
@@ -77,45 +80,50 @@ async function main() {
     let choice = await ask("\n Select an option (0-20): ");
     switch (choice) {
       case "0":
-        await searchProduct();
-        break;
-      case "1":
         await addProduct();
         break;
-      case "2":
+      case "1":
         await viewAllProduct();
         break;
-      case "3":
+      case "2":
         await updateProduct();
         break;
-      case "4":
+      case "3":
         await deleteProduct();
+        break;
+      case "4":
+        await searchProduct();
         break;
       case "5":
         await saleProduct();
         break;
       case "6":
-        await addSupplier();
+        await viewSaleHistory();
         break;
       case "7":
-        await viewAllSupplier();
-        break;
-      case "8":
-        await updateSupplier();
-        break;
-      case "9":
-        await deleteSupplier();
-        break;
-            case "10":
         await searchSaleProduct();
         break;
-      case "11":
-        await refreshProductTable();
+      case "8":
+        await addSupplier();
         break;
-      case "20":
+      case "9":
+        await viewAllSupplier();
+        break;
+      case "10":
+        await updateSupplier();
+        break;
+      case "11":
+        await deleteSupplier();
+        break;
+         case "12":
+         await searchSupplier();
+         break;
+       case "13":
+         await refreshProductTable();
+         break;
+      case "15":
         console.log("Goodbye!");
         process.exit();
-
       default:
         console.log("Invalid option. Please enter a number between 0 and 20.");
     }
@@ -238,6 +246,31 @@ async function deleteProduct() {
     }
   }
 }
+// Search Product
+async function searchProduct() {
+  let searchProduct = await ask("Please Enter Search option Id/Name/Category ");
+  if (searchProduct.toLowerCase() === "name") {
+    let name = await ask("Please Enter name ");
+    const searchItems = db
+      .prepare("SELECT * FROM product Where name = ?")
+      .all(name);
+    console.table(searchItems);
+  } else if (searchProduct.toLowerCase() === "id") {
+    let id = await ask("Please Enter id ");
+    const searchItems = db
+      .prepare("SELECT * FROM product Where id = ?")
+      .all(id);
+    console.table(searchItems);
+  } else if (searchProduct.toLowerCase() === "category") {
+    let category = await ask("Please Enter category ");
+    const searchItems = db
+      .prepare("SELECT * FROM product Where category = ?")
+      .all(category);
+    console.table(searchItems);
+  } else {
+    console.log("Please enter correct option");
+  }
+}
 // sale Product
 async function saleProduct() {
   try {
@@ -342,6 +375,43 @@ async function insertSaleItem(
       taxes
     );
 }
+// sale history
+async function viewSaleHistory() {
+  const viewSaleItems = db.prepare("SELECT * FROM sale").all();
+  console.table(viewSaleItems);
+}
+// Search Sale Product
+async function searchSaleProduct() {
+  let searchProduct = await ask("Please Enter Search option Name/Date ");
+
+  if (searchProduct.toLowerCase() === "name") {
+    let name = await ask("Please Enter customer name ");
+    const searchSaleItems = db
+      .prepare("SELECT * FROM sale WHERE customerName LIKE ?")
+      .all(`%${name}%`);
+    console.table(searchSaleItems);
+  } else if (searchProduct.toLowerCase() === "date") {
+    let date = await ask("Please Enter date (DD/MM/YYYY) ");
+
+    // Convert DD/MM/YYYY to YYYY-MM-DD format
+    const dateParts = date.split("/");
+    if (dateParts.length === 3) {
+      const day = dateParts[0].padStart(2, "0");
+      const month = dateParts[1].padStart(2, "0");
+      const year = dateParts[2];
+      const formattedDate = `${year}-${month}-${day}`;
+
+      const searchSaleItems = db
+        .prepare("SELECT * FROM sale WHERE DATE(createdAt) = DATE(?)")
+        .all(formattedDate);
+      console.table(searchSaleItems);
+    } else {
+      console.log("Please enter date in correct format (DD/MM/YYYY)");
+    }
+  } else {
+    console.log("Please enter correct option");
+  }
+}
 // add  Supplier
 async function addSupplier() {
   const name = await ask("Enter supplier's Name: ");
@@ -437,70 +507,22 @@ async function deleteSupplier() {
     }
   }
 }
-// Search Product
-async function searchProduct() {
-  let searchProduct = await ask("Please Enter Search option Id/Name/Category ");
-  if (searchProduct.toLowerCase() === "name") {
-    let name = await ask("Please Enter name ");
-    const searchItems = db
-      .prepare("SELECT * FROM product Where name = ?")
-      .all(name);
-    console.table(searchItems);
-  } else if (searchProduct.toLowerCase() === "id") {
-    let id = await ask("Please Enter id ");
-    const searchItems = db
-      .prepare("SELECT * FROM product Where id = ?")
-      .all(id);
-    console.table(searchItems);
-  } else if (searchProduct.toLowerCase() === "category") {
-    let category = await ask("Please Enter category ");
-    const searchItems = db
-      .prepare("SELECT * FROM product Where category = ?")
-      .all(category);
-    console.table(searchItems);
-  } else {
-    console.log("Please enter correct option");
-  }
-}
-// Search Sale Product
-async function searchSaleProduct() {
-  let searchProduct = await ask("Please Enter Search option Name/Date ");
-  
-  if (searchProduct.toLowerCase() === "name") {
-    let name = await ask("Please Enter customer name ");
-    const searchSaleItems = db
-      .prepare("SELECT * FROM sale WHERE customerName LIKE ?")
+// Search Supplier
+async function searchSupplier() {
+  let searchSupplier = await ask("Please Enter Search option name ");
+  if (searchSupplier.toLowerCase() === "name") {
+    let name = await ask("Please Enter supplier name ");
+    const searchSupplierItems = db
+      .prepare("SELECT * FROM supplier WHERE name LIKE ?")
       .all(`%${name}%`);
-    console.table(searchSaleItems);
-    
-  } else if (searchProduct.toLowerCase() === "date") {
-    let date = await ask("Please Enter date (DD/MM/YYYY) ");
-    
-    // Convert DD/MM/YYYY to YYYY-MM-DD format
-    const dateParts = date.split('/');
-    if (dateParts.length === 3) {
-      const day = dateParts[0].padStart(2, '0');
-      const month = dateParts[1].padStart(2, '0');
-      const year = dateParts[2];
-      const formattedDate = `${year}-${month}-${day}`;
-      
-      const searchSaleItems = db
-        .prepare("SELECT * FROM sale WHERE DATE(createdAt) = DATE(?)")
-        .all(formattedDate);
-      console.table(searchSaleItems);
-    } else {
-      console.log("Please enter date in correct format (DD/MM/YYYY)");
-    }
-    
-  } else {
+    console.table(searchSupplierItems);
+  } 
+  else{
     console.log("Please enter correct option");
   }
 }
-
 async function refreshProductTable() {
   await db.prepare("DELETE FROM product WHERE quantity = 0").run();
   console.log("successfully Refresh");
 }
-
-
 main();
